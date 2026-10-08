@@ -1,0 +1,63 @@
+workflowExternalId: wf_icapi_data_pipeline
+version: '1'
+
+workflowDefinition:
+  description: 'Ice Cream API data pipeline workflow'
+
+  tasks:
+    - externalId: create_asset_hierarchy_task
+      type: 'transformation'
+      parameters:
+        transformation:
+          externalId: 'create_asset_hierarchy'
+          concurrencyPolicy: fail
+      name: 'Create Asset Hierarchy'
+      description: Create asset hierarchy transformation
+      retries: 3
+      timeout: 3600
+      onFailure: 'abortWorkflow'
+
+    - externalId: contextualize_ts_assets_task
+      type: 'transformation'
+      parameters:
+        transformation:
+          externalId: 'contextualize_ts_assets'
+          concurrencyPolicy: fail
+      name: 'Contextualize Time Series'
+      description: Link timeseries to assets
+      retries: 3
+      timeout: 3600
+      onFailure: 'abortWorkflow'
+      dependsOn:
+        - externalId: create_asset_hierarchy_task
+
+    - externalId: icapi_datapoints_extractor_task
+      type: 'function'
+      parameters:
+        function:
+          externalId: 'icapi_datapoints_extractor'
+          data:
+            hours: 1
+        isAsyncComplete: false
+      name: 'Extract Datapoints'
+      description: Load datapoints from Ice Cream API
+      retries: 3
+      timeout: 3600
+      onFailure: 'abortWorkflow'
+      dependsOn:
+        - externalId: contextualize_ts_assets_task
+
+    - externalId: oee_timeseries_task
+      type: 'function'
+      parameters:
+        function:
+          externalId: 'oee_timeseries'
+          data: {}
+        isAsyncComplete: false
+      name: 'Calculate OEE'
+      description: Calculate OEE timeseries
+      retries: 3
+      timeout: 3600
+      onFailure: 'abortWorkflow'
+      dependsOn:
+        - externalId: icapi_datapoints_extractor_task
